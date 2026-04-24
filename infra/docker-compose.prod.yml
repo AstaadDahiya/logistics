@@ -1,18 +1,10 @@
 # =============================================================================
-# Logistics Platform — Local Development Infrastructure
+# Logistics Platform — Production GCE Deployment
 #
-# Services:
-#   - Redpanda: Kafka-compatible streaming (ports 19092, 18081, 18082)
-#   - Redpanda Console: Web UI for inspecting topics (port 8080)
-#   - Redis: In-memory cache for shipment context (port 6379)
-#   - Flink Job: PyFlink collision detection (standalone mode)
+# All services run together on a single VM. No profiles needed.
 #
 # Usage:
-#   docker compose -f infra/docker-compose.yml up -d
-#   docker compose -f infra/docker-compose.yml down
-#
-# Build Flink image (first time only):
-#   docker compose -f infra/docker-compose.yml build flink-job
+#   docker compose -f docker-compose.prod.yml up -d
 # =============================================================================
 
 services:
@@ -26,14 +18,14 @@ services:
       - --smp=1
       - --memory=512M
       - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://34.173.18.253:19092
       - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081
       - --pandaproxy-addr=internal://0.0.0.0:8082,external://0.0.0.0:18082
     ports:
-      - "19092:19092"   # Kafka API (external)
-      - "18081:18081"   # Schema Registry
-      - "18082:18082"   # Panda Proxy (REST)
-      - "9644:9644"     # Admin API
+      - "19092:19092"
+      - "18081:18081"
+      - "18082:18082"
+      - "9644:9644"
     volumes:
       - redpanda_data:/var/lib/redpanda/data
     healthcheck:
@@ -41,20 +33,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:v2.5.2
-    container_name: logistics-redpanda-console
-    depends_on:
-      redpanda:
-        condition: service_healthy
-    ports:
-      - "8080:8080"
-    environment:
-      CONFIG_FILEPATH: ""
-      KAFKA_BROKERS: redpanda:9092
-      REDPANDA_ADMINAPI_ENABLED: "true"
-      REDPANDA_ADMINAPI_URLS: "http://redpanda:9644"
+    restart: always
 
   redis:
     image: redis:7-alpine
@@ -69,6 +48,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    restart: always
 
   flink-job:
     build:
@@ -89,15 +69,9 @@ services:
       FLINK_TELEMETRY_GROUP_ID: flink-collision-telemetry
       FLINK_THREAT_GROUP_ID: flink-collision-threats
     volumes:
-      # Mount job code for live reload during development
       - ../services/prediction/flink_job/collision_job.py:/app/collision_job.py:ro
       - ../services/prediction/flink_job/geometry.py:/app/geometry.py:ro
-    restart: on-failure
-    # profiles lets you choose whether to start the Flink job or not:
-    #   docker compose -f infra/docker-compose.yml up -d              (without flink)
-    #   docker compose -f infra/docker-compose.yml --profile flink up -d  (with flink)
-    profiles:
-      - flink
+    restart: always
 
   llm-service:
     build:
@@ -109,18 +83,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    env_file:
-      - ../services/llm-service/.env
     environment:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       REDIS_URL: redis://redis:6379/0
+      GCP_PROJECT: logistics-493715
+      GCP_LOCATION: us-central1
       GOOGLE_APPLICATION_CREDENTIALS: /app/gcp-key.json
-    # Mount the local gcloud config to allow Vertex AI access if not using a key file
-    volumes:
-      - ~/.config/gcloud:/root/.config/gcloud:ro
-    restart: on-failure
-    profiles:
-      - llm
+    ports:
+      - "8080:8080"
+    restart: always
 
   bridge:
     build:
@@ -134,13 +105,11 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       REDIS_URL: redis://redis:6379/0
-      LLM_SERVICE_URL: http://logistics-llm-optimization:8000
+      LLM_SERVICE_URL: http://logistics-llm-optimization:8080
       PORT: "3001"
     ports:
       - "3001:3001"
-    restart: on-failure
-    profiles:
-      - dashboard
+    restart: always
 
   context-assembly:
     build:
@@ -157,9 +126,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       ANOMALY_ALERTS_TOPIC: anomaly-alerts
       OPTIMIZATION_REQUESTS_TOPIC: optimization-requests
-    restart: on-failure
-    profiles:
-      - llm
+    restart: always
 
 volumes:
   redpanda_data:
