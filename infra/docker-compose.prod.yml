@@ -3,6 +3,11 @@
 #
 # All services run together on a single VM. No profiles needed.
 #
+# SECURITY NOTE:
+#   - GCP credentials are injected via GOOGLE_APPLICATION_CREDENTIALS
+#   - Project ID and location are auto-detected from the service account key
+#   - Do NOT hardcode GCP_PROJECT or GCP_LOCATION in this file
+#
 # Usage:
 #   docker compose -f docker-compose.prod.yml up -d
 # =============================================================================
@@ -86,8 +91,7 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       REDIS_URL: redis://redis:6379/0
-      GCP_PROJECT: logistics-493715
-      GCP_LOCATION: us-central1
+      # GCP credentials via service account key (project auto-detected)
       GOOGLE_APPLICATION_CREDENTIALS: /app/gcp-key.json
     ports:
       - "8080:8080"
