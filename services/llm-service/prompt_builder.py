@@ -31,6 +31,22 @@ Return ONLY this JSON structure:
 
 
 def build_prompt(request_data: LLMOptimizationRequest) -> str:
-    """Inject the request payload JSON into the system prompt template."""
-    payload_json = request_data.model_dump_json(indent=2)
+    """Build a prompt without leaking sensitive request data."""
+    
+    # Extract only necessary optimization data
+    routes_summary = "\n".join([
+        f"- Route {r.route_id}: delay={r.delay_hours}h, cost=${r.cost}, carrier={r.carrier}"
+        for r in request_data.fallback_routes
+    ])
+    
+    disruption_summary = f"""
+Priority: {request_data.priority}
+Severity: {request_data.disruption_details.severity}
+Threat: {request_data.disruption_details.threat_type}
+Delay: {request_data.disruption_details.estimated_delay_hours}h
+"""
+    
+    return SYSTEM_PROMPT_TEMPLATE.format(
+        payload=f"{disruption_summary}\nAvailable Routes:\n{routes_summary}"
+    )
     return SYSTEM_PROMPT_TEMPLATE.format(payload=payload_json)
