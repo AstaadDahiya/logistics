@@ -1,5 +1,4 @@
 import asyncio
-import os
 import json
 import logging
 from dotenv import load_dotenv
@@ -14,14 +13,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LLM-Verifier")
 
 async def run_diagnostic():
-    # 1. Load configuration
+    # 1. Load configuration from .env (optional now — ADC will auto-detect project)
     load_dotenv()
-    project = os.environ.get("GCP_PROJECT")
-    if not project:
-        print("❌ ERROR: GCP_PROJECT not found in .env")
-        return
 
-    print(f"🔍 Starting LLM Diagnostic (Project: {project})")
+    print("🔍 Starting LLM Diagnostic...")
+    print("(GCP project will be auto-detected from Application Default Credentials)")
     
     # 2. Construct a sample disruption payload
     # Scenario: A severe weather event causing a 48h delay for a HIGH priority shipment
