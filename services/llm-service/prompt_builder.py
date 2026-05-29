@@ -49,4 +49,3 @@ Delay: {request_data.disruption_details.estimated_delay_hours}h
     return SYSTEM_PROMPT_TEMPLATE.format(
         payload=f"{disruption_summary}\nAvailable Routes:\n{routes_summary}"
     )
-    return SYSTEM_PROMPT_TEMPLATE.format(payload=payload_json)
